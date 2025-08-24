@@ -59,7 +59,9 @@ def get_novnc_url(student_id, vmid):
     if not vm:
         return jsonify({"error": "VM not found for student"}), 404
 
-    novnc_url = vm_manager.get_vm_novnc_url(vm['node'], vmid)
+    ticket, _ = vm_manager.get_auth_ticket()
+    novnc_url = vm_manager.get_vm_novnc_url(vm['node'], vmid, ticket)
+
     return jsonify({"novnc_url": novnc_url})
 
 

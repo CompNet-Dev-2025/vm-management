@@ -4,6 +4,9 @@ from proxmoxer import ProxmoxAPI
 
 class StudentVMManager:
     def __init__(self, proxmox_host, user, password, verify_ssl=False):
+        self.proxmox_host = proxmox_host
+        self.user = user
+        self.password = password
         self.proxmox = ProxmoxAPI(proxmox_host, user=user, password=password, verify_ssl=verify_ssl)
         
     def get_student_vms(self, student_id):
@@ -33,13 +36,20 @@ class StudentVMManager:
 
     # option 1: RDP, returns IP address      
     def get_vm_rdp_info(self, node, vmid):
-        return True 
+        return {"RDP not implemented yet"} 
     
     # option 2: noVNC, browser based remote console URL 
-    def get_vm_novnc_url(self, node, vmid, proxmox_host, proxmox_user, ticket):
+    def get_auth_ticket(self):
+        auth = self.proxmox.access.ticket.post(
+            username=self.user,
+            password=self.password
+        )
+        return auth.get('ticket'), auth.get('CSRFPreventionToken')
+
+    def get_vm_novnc_url(self, node, vmid, ticket):
         url = (
-            f"https://{proxmox_host}:8006/?console=kvm&novnc=1"
+            f"https://{self.proxmox_host}:8006/?console=kvm&novnc=1"
             f"&node={node}&vmid={vmid}"
-            f"&username={proxmox_user}&ticket={ticket}"
+            f"&username={self.user}&ticket={ticket}"
         )
         return url
