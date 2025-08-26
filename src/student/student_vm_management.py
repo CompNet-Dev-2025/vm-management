@@ -1,19 +1,33 @@
-from proxmoxer import ProxmoxAPI
+from proxmoxer import ProxmoxAPI 
+import os 
+import logging 
+
+logger = logging.getLogger(__name__)
 
  # VM.Audit permission must be enabled in Proxmox to get VM information 
 
 class StudentVMManager:
-    def __init__(self, proxmox_host, user, password, verify_ssl=False):
-        self.proxmox_host = proxmox_host
-        self.user = user
-        self.password = password
-        self.proxmox = ProxmoxAPI(proxmox_host, user=user, password=password, verify_ssl=verify_ssl)
+    def __init__(self):
+        self.proxmox_host = os.environ.get("PROXMOX_HOST")
+        self.user = os.environ.get("PROXMOX_USER")
+        self.password = os.environ.get("PROXMOX_PASS")
+        verify = os.environ.get("PROXMOX_VERIFY_SSL", "false").lower() in ("1", "true", "yes")
+        if not self.proxmox_host or not self.user or not self.password:
+            raise RuntimeError("Missing Proxmox environment variables. Check .env")
         
-    def get_student_vms(self, student_id):
+        host = self.proxmox_host.replace("https://", "").replace("http://", "")
+        self.proxmox = ProxmoxAPI(host, user=self.user, password=self.password, verify_ssl=verify)
+
+    def get_student_vms(self, student_id:str):
         vms = []
         nodes = self.proxmox.nodes.get()
         for node in nodes:
-            vmlist = self.proxmox.nodes(node['node']).qemu.get() # Requires name of each proxmox node
+            try:
+                vmlist = self.proxmox.nodes(node['node']).qemu.get() # Requires name of each proxmox node
+            except Exception as e: 
+                logger.warning(f"Failed to list VMs on node {node['node']}: {e}")
+                continue
+
             for vm in vmlist:
                 if f"student-{student_id}" in vm.get('name', ''):
                     vms.append({
@@ -28,11 +42,13 @@ class StudentVMManager:
         status = self.proxmox.nodes(node).qemu(vmid).status.current.get()
         return status.get('status')
 
-    def start_vm(self, node, vmid):
-        return self.proxmox.nodes(node).qemu(vmid).status.start.post()
+    def reboot_vm(self, node, vmid):
+        try:
+            return self.proxmox.nodes(node).qemu(vmid).status.reboot.post()
+        except Exception as e:
+            logger.error(f"Failed to reboot VM {vmid} on node {node}: {e}")
+            raise
 
-    def stop_vm(self, node, vmid):
-        return self.proxmox.nodes(node).qemu(vmid).status.stop.post()
 
     # option 1: RDP, returns IP address      
     def get_vm_rdp_info(self, node, vmid):
